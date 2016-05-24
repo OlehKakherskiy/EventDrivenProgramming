@@ -2,6 +2,12 @@ global.api = {};
 api.fs = require('fs');
 api.http = require('http');
 api.websocket = require('websocket');
+require('../EventEmitter/emitter.js')
+
+//create event emitter
+var emitter = global.EventEmitter;
+
+console.dir(emitter);
 
 var index = api.fs.readFileSync('./index.html');
 
@@ -10,8 +16,8 @@ var server = api.http.createServer(function(req, res) {
   res.end(index);
 });
 
-server.listen(80, function() {
-  console.log('Listen port 80');
+server.listen(8080, function() {
+  console.log('Listen port 8080');
 });
 
 var ws = new api.websocket.server({
@@ -26,6 +32,7 @@ ws.on('request', function(req) {
   clients.push(connection);
   console.log('Connected ' + connection.remoteAddress);
   connection.on('message', function(message) {
+    console.log(message);
     var dataName = message.type + 'Data',
         data = message[dataName];
     console.log('Received: ' + data);
@@ -39,3 +46,7 @@ ws.on('request', function(req) {
     console.log('Disconnected ' + connection.remoteAddress);
   });
 });
+
+var subscribeToTableChanges = function(clientConnection){
+  emitter.on("cellUpdated",function(data){clientConnection.send(data)});
+}

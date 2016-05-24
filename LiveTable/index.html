@@ -29,6 +29,7 @@ input { border: 1px solid green; width: 30px; }
       var cell = col + i;
       var input = document.getElementById(cell);
       input.addEventListener('keyup', keyup);
+      //input.addEventListener('click',function(){alert("тыдышь "+cell)});
       cells[cell] = input;
     });
   }
