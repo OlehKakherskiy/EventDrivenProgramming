@@ -7,7 +7,7 @@ var emitter = global.EventEmitter;
 
 var index = api.fs.readFileSync('./index.html');
 
-var model = {}; //объект вида : имя_поля_таблицы : значение
+var model = []; //объект вида : имя_поля_таблицы : значение
 
 var letters = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -40,42 +40,52 @@ ws.on('request', function(req) {
   connection.on('message', function(message) {
     var dataName = message.type + 'Data',
         data = message[dataName];
-    console.log(message);
     console.log('Received: ' + data);
-    addSubscriber(data);
+    addSubscriber(JSON.parse(data));
   });
   connection.on('close', function(reasonCode, description) {
     console.log('Disconnected ' + connection.remoteAddress);
   });
 });
 
+var splitterRegex = /\s*([+*\-])\s*/;
+var cellRegex = /[A-F][1-5]/;
+
 var addSubscriber = function(data){
-  var regexp = /\s*([+*\-])\s*/;
-  var parts = functionString.split(regexp);
+  
+  console.log(data.value);
+  console.log(splitterRegex);
+  var parts = data.value.split(splitterRegex);
   var dependencies = [];
-  var f = parseFunction(dependencies,parts);
+  var f = parseFunction(dependencies,parts,splitterRegex);
+  console.log("dependencies "+dependencies);
   dependencies.forEach(function(item){
     emitter.on(item,function(){
-      data.value = f();
-
-      clients.forEach(function(client) {
-        client.send(data);
-      });
-
-      emitter.emit(""+data.cell);
-
+      evalCellValue(data,f);
     })
   });
+  evalCellValue(data,f);
+}
+
+var evalCellValue = function(data,func){
+  data.formulae = data.value;
+  data.value = func(model);
+  model[data.cell] = data.value;
+  clients.forEach(function(client) {
+    console.log("send Data: " +JSON.stringify(data));
+    client.send(data);
+  });
+  emitter.emit(""+data.cell);
 }
 
 var parseFunction = function(dependencies, parts){
   parts.forEach(function(item, i, array){
-    if(item.search(regexp) == -1){ //текущий элемент - элемент сетки (А1, В2 ...)
+    if(item.search(cellRegex) !== -1){ //текущий элемент - элемент сетки (А1, В2 ...)
       dependencies.push(item);
       array[i] = 'model["'+item+'"]';
     }
-  })
-  return new Function('',parts.unshift("return ").join(' '));
+  });
+  parts.unshift("return ");
+  console.log(parts.join(' '));
+  return new Function('model',parts.join(' '));
 }
-
-var changedValues = [];
