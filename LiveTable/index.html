@@ -30,6 +30,7 @@ input { border: 1px solid green; width: 30px; }
     letters.forEach(function(col) {
       var cell = col + i;
       var input = document.getElementById(cell);
+      input.formulae = '';
       input.addEventListener('focus', focus);
       cells[cell] = input;
     });
@@ -38,11 +39,14 @@ input { border: 1px solid green; width: 30px; }
   formulae.addEventListener('change',change);
 
   function change(event) {
-    event.target.cell.value = event.target.value;
-    alert(event.target);
+    var cell = event.target.cell;
+    cell.value = event.target.value;
+    cell.formulae = event.target.value;
+
     socket.send(JSON.stringify({
       cell: event.target.cell.id,
-      value: event.target.value
+      formulae:event.target.cell.formulae,
+      value: event.target.cell.formulae
     }));
   };
 
@@ -53,9 +57,10 @@ input { border: 1px solid green; width: 30px; }
 
   var socket = new WebSocket('ws://127.0.0.1/');
 
-  socket.onmessage = function(event) {
+  socket.onmessage = function(event) { //не работает метод, посмотреть реализацию тимура и переправить
     var change = JSON.parse(event.data);
     var cell = cells[change.cell];
+    alert(JSON.stringify(change));
     cell.value = change.value;
     cell.formulae = change.formulae;
   };

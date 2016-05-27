@@ -11,7 +11,6 @@ global.EventEmitter = {
   		var args = [];
   		Array.prototype.push.apply(args, arguments);
   		args.shift();
-  		console.log(args);
   		if (event) event.forEach(function(callback) {
     		callback.apply(undefined,args);
   		});
