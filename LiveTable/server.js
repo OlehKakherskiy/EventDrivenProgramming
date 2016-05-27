@@ -39,6 +39,7 @@ ws.on('request', function(req) {
     connection.send(JSON.stringify(model[cellID]));
   }
   connection.on('message', function(message) {
+    console.log(message);
     var dataName = message.type + 'Data',
         data = JSON.parse(message[dataName]);
     console.log('Received: ' + message[dataName]);
