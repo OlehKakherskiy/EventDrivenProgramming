@@ -7,16 +7,11 @@ var emitter = global.EventEmitter;
 
 var index = api.fs.readFileSync('./index.html');
 
-var model = []; //объект вида : имя_поля_таблицы : значение
+var model = []; // dictionaries: cellName, formulae, cellValue
 
 var letters = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 var rowCount = 5;
-
-//for(var j = 0; j < letters.length; j++)
-//  for(var i = 1; i < rowCount; i++)
-//    model[letters[j]+i] = 
-//  {cell:letters[j]+i,formulae:"",value:0};
 
 var server = api.http.createServer(function(req, res) {
   res.writeHead(200);
@@ -38,57 +33,67 @@ ws.on('request', function(req) {
   var connection = req.accept('', req.origin);
   clients.push(connection);
   console.log('Connected ' + connection.remoteAddress);
-  console.dir(model);
+
   for(var cellID in model){
-    console.log("send cell after connection "+JSON.stringify(model[cellID]));
+    console.log("send cell "+cellID+" after connection "+JSON.stringify(model[cellID]));
     connection.send(JSON.stringify(model[cellID]));
   }
   connection.on('message', function(message) {
     var dataName = message.type + 'Data',
         data = JSON.parse(message[dataName]);
     console.log('Received: ' + message[dataName]);
-    addSubscriber(data);
+    var dependencies = []; //cells which is current cell dependent on
+    var cellFunction = addSubscriber(data, dependencies);
+
+    //выполняем функцию расчета значения для ячейки
+    evalCellValue(data,cellFunction,dependencies);
   });
   connection.on('close', function(reasonCode, description) {
     console.log('Disconnected ' + connection.remoteAddress);
   });
 });
 
+//use this regex to split formulae string for tokens of cells' ID, constants and operators
 var splitterRegex = /\s*([+*\-\/])\s*/;
+
+//use this regex to identify cells' ID from splitted formulae
 var cellRegex = /[A-F][1-5]/;
 
-var addSubscriber = function(data){
+//identify all dependency cells from formulae, parses sent formulae and subscribes 
+//dependencies' changes
+var addSubscriber = function(data,dependencies){
   var parts = data.value.split(splitterRegex);
-  var dependencies = [];
   var f = parseFunction(dependencies,parts,splitterRegex);
-  console.log("function " + JSON.stringify(f));
   dependencies.forEach(function(item){
     emitter.on(item,function(){
       evalCellValue(data,f,dependencies);
     })
   });
-  //выполняем функцию расчета значения для ячейки
-  evalCellValue(data,f,dependencies);
+  return f;
 }
 
+//wrap formulae function with getting actual params from model object
 var evalCellValue = function(data,func,dependencies){
-  params = [];
+  actualParams = []; //actual params are called from model variable (using dependency information)
   dependencies.forEach(function(cellName){
-    params.push(model[cellName] === undefined ? 0 : model[cellName].value);  
+    actualParams.push(model[cellName] === undefined ? 0 : model[cellName].value);  
   });
-  console.dir(params);
-  data.value = func.apply(undefined,params);
-  model[""+data.cell] = data;
+  console.dir(actualParams);
+  data.value = func.apply(undefined, actualParams); //call formulae function to calc cell Value.
+  model[""+data.cell] = data; //update cell data 
+  //sends data to all connected clients
   clients.forEach(function(client) {
     console.log("send Data: " +JSON.stringify(data));
     client.send(JSON.stringify(data));
   });
+  //inits changing in depending cells
   emitter.emit(""+data.cell);
 }
 
+//parses all dependencies from formulae and builds formulae function
 var parseFunction = function(dependencies, parts){
   parts.forEach(function(item, i, array){
-    if(item.search(cellRegex) !== -1){ //текущий элемент - элемент сетки (А1, В2 ...)
+    if(item.search(cellRegex) !== -1){ //current element - (А1, В2 ...)
       dependencies.push(item);
     }
   });
